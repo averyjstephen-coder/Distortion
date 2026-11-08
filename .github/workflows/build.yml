@@ -1,0 +1,49 @@
+name: Build Rock Icons Drive
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  engine-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run engine tests
+        run: |
+          g++ -O2 -std=c++17 -Wall -Wextra -ISource -Itests tests/test_engine.cpp -o engine_tests
+          ./engine_tests
+      - name: Render demo audio
+        run: |
+          g++ -O2 -std=c++17 -ISource -Itests tools/render_demo.cpp -o render_demo
+          ./render_demo demo_all_models.wav
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-audio
+          path: demo_all_models.wav
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -G Xcode -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --target RockIconsDrive_AU RockIconsDrive_VST3
+
+      - name: Ad-hoc sign and package
+        run: |
+          mkdir -p dist
+          cp -R "build/RockIconsDrive_artefacts/Release/AU/Rock Icons Drive.component" dist/
+          cp -R "build/RockIconsDrive_artefacts/Release/VST3/Rock Icons Drive.vst3" dist/
+          codesign --force --deep -s - "dist/Rock Icons Drive.component"
+          codesign --force --deep -s - "dist/Rock Icons Drive.vst3"
+          ditto -c -k --keepParent dist RockIconsDrive-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RockIconsDrive-macOS
+          path: RockIconsDrive-macOS.zip
